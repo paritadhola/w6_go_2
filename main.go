@@ -21,7 +21,7 @@ type Server struct {
 var serverList []Server
 var nextServerID int = 1
 
-// Input the server data
+// Input method for Server Data
 func inputServerData(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
@@ -58,22 +58,15 @@ func getAllServerData(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(serverList)
 }
 
-// Get server by ID
 func getServerByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Extract the server ID from the URL path
-	pathParts := strings.Split(r.URL.Path, "/")
-	if len(pathParts) < 3 {
-		http.Error(w, "Server ID not provided", http.StatusBadRequest)
-		return
-	}
-
-	// Convert the server ID from string to integer
-	serverID, err := strconv.Atoi(pathParts[2])
+	// Extract server ID from the URL
+	idStr := strings.TrimPrefix(r.URL.Path, "/getServerByID/")
+	serverID, err := strconv.Atoi(idStr)
 	if err != nil {
 		http.Error(w, "Invalid server ID", http.StatusBadRequest)
 		return
@@ -89,13 +82,85 @@ func getServerByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If server not found, return 404
-	//	http.Error(w, "Server not found", http.StatusNotFound)
+	http.Error(w, "Server not found", http.StatusNotFound)
+}
+func updateServerByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract server ID from the URL
+	idStr := strings.TrimPrefix(r.URL.Path, "/updateServerByID/")
+	serverID, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid server ID", http.StatusBadRequest)
+		return
+	}
+
+	// Find the server by ID
+	for i, server := range serverList {
+		if server.ID == serverID {
+			// Parse the updated server data
+			var updatedServer Server
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "Invalid read request body", http.StatusBadRequest)
+				return
+			}
+
+			err = json.Unmarshal(body, &updatedServer)
+			if err != nil {
+				http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+				return
+			}
+
+			// Update server data
+			serverList[i].HostName = updatedServer.HostName
+			serverList[i].IPAddress = updatedServer.IPAddress
+			serverList[i].Status = updatedServer.Status
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(serverList[i])
+			return
+		}
+	}
+}
+func deleteServerByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract server ID from the URL
+	idStr := strings.TrimPrefix(r.URL.Path, "/deleteServerByID/")
+	serverID, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid server ID", http.StatusBadRequest)
+		return
+	}
+
+	// Search for the server by ID and delete it
+	for i, server := range serverList {
+		if server.ID == serverID {
+			// Delete the server from the list
+			serverList = append(serverList[:i], serverList[i+1:]...)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"message": "Server deleted successfully"})
+			return
+		}
+	}
+
+	// If server not found, return 404
+	http.Error(w, "Server not found", http.StatusNotFound)
 }
 
 func main() {
 	http.HandleFunc("/getAllServerData", getAllServerData)
 	http.HandleFunc("/inputServerData", inputServerData)
 	http.HandleFunc("/getServerByID/", getServerByID)
+	http.HandleFunc("/updateServerByID/", updateServerByID)
+	http.HandleFunc("/deleteServerByID/", deleteServerByID)
 	fmt.Println("Server running on port : 46664")
 	log.Fatal(http.ListenAndServe(":46664", nil))
 }
